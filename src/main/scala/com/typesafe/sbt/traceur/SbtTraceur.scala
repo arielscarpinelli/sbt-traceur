@@ -41,7 +41,7 @@ object SbtTraceur extends AutoPlugin {
   import SbtJsEngine.autoImport.JsEngineKeys._
 
   override def projectSettings = Seq(
-    includeFilter := GlobFilter("*.js"),
+    includeFilter in traceur := GlobFilter("*.js"),
     sourceFileNames := Seq("javascripts/main.js"),
     outputFileName := "main.js",
     experimental := false,
@@ -50,8 +50,8 @@ object SbtTraceur extends AutoPlugin {
     extraOptions := Seq(),
     traceur in Assets := runTraceur(Assets).dependsOn(webJarsNodeModules in Plugin).value,
     traceur in TestAssets := runTraceur(TestAssets).dependsOn(webJarsNodeModules in Plugin).value,
-    sourceGenerators in Assets <+= traceur in Assets,
-    sourceGenerators in TestAssets <+= traceur in TestAssets
+    resourceGenerators in Assets <+= traceur in Assets,
+    resourceGenerators in TestAssets <+= traceur in TestAssets
   )
 
   def boolToParam(condition:Boolean, param:String): Seq[String] = {
@@ -59,10 +59,9 @@ object SbtTraceur extends AutoPlugin {
   }
 
   private def runTraceur(config:Configuration): Def.Initialize[Task[Seq[File]]] = Def.task {
-  
       val sourceDir = (sourceDirectory in config).value
-      val outputDir = (sourceManaged in config).value
-      val inputFileCandidates = (sourceDir ** includeFilter.value).get
+      val outputDir = (resourceManaged in config).value
+      val inputFileCandidates = (sourceDir ** (includeFilter in traceur).value).get
       val outputFile = (outputDir / outputFileName.value)
 
 	  val commandlineParameters = (
@@ -92,7 +91,11 @@ object SbtTraceur extends AutoPlugin {
 	    
 	    IO.write(outputFile, runtime + compiled)
       }
-
-	  Seq(outputFile)
+      
+      if (sourceMaps.value) {
+        Seq(outputFile, outputDir / outputFileName.value.replace(".js", ".map"))
+      } else {
+	    Seq(outputFile)
+	  }
   }
 }
