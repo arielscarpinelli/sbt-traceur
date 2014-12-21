@@ -14,7 +14,7 @@ object Import {
 
   object TraceurKeys {
 
-    val sourceFileNames = SettingKey[Seq[String]]("traceur-sources", "Files to compile. Should just be the 'root' modules, traceur will pull the rest. So for example if A.js requires B.js requires C.js, only list A.js here. Default main.js")
+    val sourceFileNames = SettingKey[Seq[String]]("traceur-sources", "Files to compile. Should just be the 'root' modules, traceur will pull the rest. So for example if A.js requires B.js requires C.js, only list A.js here. Default javascripts/main.js")
     val outputFileName = SettingKey[String]("traceur-output", "Name of the output file. Default main.js")
     val experimental = SettingKey[Boolean]("traceur-experimental", "Turns on all experimental features. Default false")
     val sourceMaps = SettingKey[Boolean]("traceur-source-maps", "Enable source maps generation")
@@ -42,7 +42,7 @@ object SbtTraceur extends AutoPlugin {
 
   override def projectSettings = Seq(
     includeFilter := GlobFilter("*.js"),
-    sourceFileNames := Seq("main.js"),
+    sourceFileNames := Seq("javascripts/main.js"),
     outputFileName := "main.js",
     experimental := false,
     sourceMaps := true,
@@ -61,17 +61,15 @@ object SbtTraceur extends AutoPlugin {
   private def runTraceur(config:Configuration): Def.Initialize[Task[Seq[File]]] = Def.task {
   
       val sourceDir = (sourceDirectory in config).value
-      val outputDir = (resourceManaged in config).value
-      val files = (sourceDir ** includeFilter.value).get
+      val outputDir = (sourceManaged in config).value
+      val inputFileCandidates = (sourceDir ** includeFilter.value).get
+      val outputFile = (outputDir / outputFileName.value)
 
 	  val commandlineParameters = (
 		boolToParam(experimental.value, "--experimental")
 		++ boolToParam(sourceMaps.value, "--source-maps=file")
 		++ extraOptions.value
-		++ Seq("--out", (outputDir / outputFileName.value).toString)
-		++ boolToParam(includeRuntime.value,
-		  ((webJarsNodeModulesDirectory in Plugin).value / "traceur" / "bin" / "traceur-runtime.js").toString
-		)
+		++ Seq("--out", outputFile.toString)
 		++ (sourceFileNames.value.map(file => (sourceDir / file).toString))
 	  )
 
@@ -85,9 +83,16 @@ object SbtTraceur extends AutoPlugin {
 		Nil,
 		(webJarsNodeModulesDirectory in Plugin).value / "traceur" / "src" / "node" / "command.js",
 		commandlineParameters,
-		(timeoutPerSource in traceur).value * files.size
+		(timeoutPerSource in traceur).value * inputFileCandidates.size
 	  )
+	  
+	  if (includeRuntime.value) {
+	    val compiled = IO.read(outputFile)
+	    val runtime = IO.read(((webJarsNodeModulesDirectory in Plugin).value / "traceur" / "bin" / "traceur-runtime.js"))
+	    
+	    IO.write(outputFile, runtime + compiled)
+      }
 
-	  files.toSeq
+	  Seq(outputFile)
   }
 }
