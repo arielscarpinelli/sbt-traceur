@@ -11,7 +11,7 @@ scalaVersion := "2.10.4"
 scalacOptions += "-feature"
 
 libraryDependencies ++= Seq(
-  "org.webjars" % "traceur" % "0.0.80-SNAPSHOT"
+  "org.webjars" % "traceur" % "0.0.79-1"
 )
 
 resolvers ++= Seq(
