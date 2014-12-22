@@ -18,3 +18,4 @@ project/project
 .scala_dependencies
 .worksheet
 .idea
+.DS_Store
