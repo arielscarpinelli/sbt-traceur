@@ -58,7 +58,8 @@ object SbtTraceur extends AutoPlugin {
     val sourceDir = (sourceDirectory in config).value
     val outputDir = (resourceManaged in config).value
     val inputFileCandidates = (sourceDir ** (includeFilter in traceur).value).get
-    val outputFile = (outputDir / outputFileName.value)
+    val outputFile = outputDir / outputFileName.value
+    val sourceMapFile = outputDir / outputFileName.value.replace(".js", ".map")
 
     val commandlineParameters = (
       boolToParam(experimental.value, "--experimental")
@@ -86,10 +87,19 @@ object SbtTraceur extends AutoPlugin {
       val runtime = IO.read(((webJarsNodeModulesDirectory in Plugin).value / "traceur" / "bin" / "traceur-runtime.js"))
 
       IO.write(outputFile, runtime + compiled)
+
+      if (sourceMaps.value) {
+        val runtimeLineCount = runtime.split("\n").length;
+        var sourceMap = IO.read(sourceMapFile)
+
+        val adjustedSourceMap = sourceMap.replace("\"mappings\":\"", "\"mappings\":\"" + ";" * runtimeLineCount);
+
+        IO.write(sourceMapFile, adjustedSourceMap)
+      }
     }
 
     if (sourceMaps.value) {
-      Seq(outputFile, outputDir / outputFileName.value.replace(".js", ".map"))
+      Seq(outputFile, sourceMapFile)
     } else {
       Seq(outputFile)
     }
