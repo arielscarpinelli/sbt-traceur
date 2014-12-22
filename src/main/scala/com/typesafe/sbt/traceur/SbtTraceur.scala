@@ -1,12 +1,8 @@
 package com.typesafe.sbt.traceur
 
 import com.typesafe.sbt.jse.{SbtJsEngine, SbtJsTask}
-import com.typesafe.sbt.web.pipeline.Pipeline
-import com.typesafe.sbt.web._
-
 import sbt.Keys._
 import sbt._
-import spray.json._
 
 object Import {
 
@@ -33,12 +29,12 @@ object SbtTraceur extends AutoPlugin {
 
   val autoImport = Import
 
-  import Import._
-  import Import.TraceurKeys._
+  import com.typesafe.sbt.jse.SbtJsEngine.autoImport.JsEngineKeys._
   import com.typesafe.sbt.jse.SbtJsTask.autoImport.JsTaskKeys._
+  import com.typesafe.sbt.traceur.Import.TraceurKeys._
+  import com.typesafe.sbt.traceur.Import._
   import com.typesafe.sbt.web.Import.WebKeys._
   import com.typesafe.sbt.web.SbtWeb.autoImport._
-  import SbtJsEngine.autoImport.JsEngineKeys._
 
   override def projectSettings = Seq(
     includeFilter in traceur := GlobFilter("*.js"),
@@ -54,48 +50,48 @@ object SbtTraceur extends AutoPlugin {
     resourceGenerators in TestAssets <+= traceur in TestAssets
   )
 
-  def boolToParam(condition:Boolean, param:String): Seq[String] = {
+  def boolToParam(condition: Boolean, param: String): Seq[String] = {
     if (condition) Seq(param) else Seq()
   }
 
-  private def runTraceur(config:Configuration): Def.Initialize[Task[Seq[File]]] = Def.task {
-      val sourceDir = (sourceDirectory in config).value
-      val outputDir = (resourceManaged in config).value
-      val inputFileCandidates = (sourceDir ** (includeFilter in traceur).value).get
-      val outputFile = (outputDir / outputFileName.value)
+  private def runTraceur(config: Configuration): Def.Initialize[Task[Seq[File]]] = Def.task {
+    val sourceDir = (sourceDirectory in config).value
+    val outputDir = (resourceManaged in config).value
+    val inputFileCandidates = (sourceDir ** (includeFilter in traceur).value).get
+    val outputFile = (outputDir / outputFileName.value)
 
-	  val commandlineParameters = (
-		boolToParam(experimental.value, "--experimental")
-		++ boolToParam(sourceMaps.value, "--source-maps=file")
-		++ extraOptions.value
-		++ Seq("--out", outputFile.toString)
-		++ (sourceFileNames.value.map(file => (sourceDir / file).toString))
-	  )
+    val commandlineParameters = (
+      boolToParam(experimental.value, "--experimental")
+        ++ boolToParam(sourceMaps.value, "--source-maps=file")
+        ++ extraOptions.value
+        ++ Seq("--out", outputFile.toString)
+        ++ (sourceFileNames.value.map(file => (sourceDir / file).toString))
+      )
 
-	  streams.value.log.info("Compiling with Traceur")
+    streams.value.log.info("Compiling with Traceur")
 
-	  SbtJsTask.executeJs(
-		state.value,
-		// For now traceur only works with node
-		EngineType.Node,
-		None,
-		Nil,
-		(webJarsNodeModulesDirectory in Plugin).value / "traceur" / "src" / "node" / "command.js",
-		commandlineParameters,
-		(timeoutPerSource in traceur).value * inputFileCandidates.size
-	  )
-	  
-	  if (includeRuntime.value) {
-	    val compiled = IO.read(outputFile)
-	    val runtime = IO.read(((webJarsNodeModulesDirectory in Plugin).value / "traceur" / "bin" / "traceur-runtime.js"))
-	    
-	    IO.write(outputFile, runtime + compiled)
-      }
-      
-      if (sourceMaps.value) {
-        Seq(outputFile, outputDir / outputFileName.value.replace(".js", ".map"))
-      } else {
-	    Seq(outputFile)
-	  }
+    SbtJsTask.executeJs(
+      state.value,
+      // For now traceur only works with node
+      EngineType.Node,
+      None,
+      Nil,
+      (webJarsNodeModulesDirectory in Plugin).value / "traceur" / "src" / "node" / "command.js",
+      commandlineParameters,
+      (timeoutPerSource in traceur).value * inputFileCandidates.size
+    )
+
+    if (includeRuntime.value) {
+      val compiled = IO.read(outputFile)
+      val runtime = IO.read(((webJarsNodeModulesDirectory in Plugin).value / "traceur" / "bin" / "traceur-runtime.js"))
+
+      IO.write(outputFile, runtime + compiled)
+    }
+
+    if (sourceMaps.value) {
+      Seq(outputFile, outputDir / outputFileName.value.replace(".js", ".map"))
+    } else {
+      Seq(outputFile)
+    }
   }
 }
