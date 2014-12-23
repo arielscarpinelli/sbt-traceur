@@ -1,8 +1,11 @@
 package com.typesafe.sbt.traceur
 
 import com.typesafe.sbt.jse.{SbtJsEngine, SbtJsTask}
+import com.typesafe.sbt.web.{CompileProblems, LineBasedProblem}
 import sbt.Keys._
 import sbt._
+import spray.json._
+import xsbti.Severity
 
 object Import {
 
@@ -71,16 +74,35 @@ object SbtTraceur extends AutoPlugin {
 
     streams.value.log.info("Compiling with Traceur")
 
-    SbtJsTask.executeJs(
-      state.value,
-      // For now traceur only works with node
-      EngineType.Node,
-      None,
-      Nil,
-      (webJarsNodeModulesDirectory in Plugin).value / "traceur" / "src" / "node" / "command.js",
-      commandlineParameters,
-      (timeoutPerSource in traceur).value * inputFileCandidates.size
-    )
+    try {
+      SbtJsTask.executeJs(
+        state.value,
+        // For now traceur only works with node
+        EngineType.Node,
+        None,
+        Nil,
+        (webJarsNodeModulesDirectory in Plugin).value / "traceur" / "src" / "node" / "command.js",
+        commandlineParameters,
+        (timeoutPerSource in traceur).value * inputFileCandidates.size
+      )
+    } catch {
+      case failure:SbtJsTask.JsTaskFailure => {
+        val lines = JsonParser(failure.getMessage.replace("'", "\"")) match {
+          case JsArray(line) => line
+          case _ => ???
+        }
+        val problems = lines.map(line => line match {
+          case JsString(problem) => problem.split(":") match {
+            case Array(path, line, column, message) =>
+              new LineBasedProblem(message, Severity.Error, line.toInt, column.toInt, "", new File(path))
+            case _ => ???
+          }
+          case _ => ???
+        })
+
+        CompileProblems.report(reporter.value, problems)
+      }
+    }
 
     if (includeRuntime.value) {
       val compiled = IO.read(outputFile)
