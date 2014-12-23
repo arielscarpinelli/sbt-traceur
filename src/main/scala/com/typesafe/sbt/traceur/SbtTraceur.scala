@@ -4,7 +4,6 @@ import com.typesafe.sbt.jse.{SbtJsEngine, SbtJsTask}
 import com.typesafe.sbt.web.{CompileProblems, LineBasedProblem}
 import sbt.Keys._
 import sbt._
-import spray.json._
 import xsbti.Severity
 
 object Import {
@@ -87,18 +86,13 @@ object SbtTraceur extends AutoPlugin {
       )
     } catch {
       case failure:SbtJsTask.JsTaskFailure => {
-        val lines = JsonParser(failure.getMessage.replace("'", "\"")) match {
-          case JsArray(line) => line
-          case _ => ???
-        }
-        val problems = lines.map(line => line match {
-          case JsString(problem) => problem.split(":") match {
-            case Array(path, line, column, message) =>
-              new LineBasedProblem(message, Severity.Error, line.toInt, column.toInt, "", new File(path))
-            case _ => ???
+        val Pattern = "^\\[? *'?(.+?):(\\d+):(\\d+):(.+?)'?,? ?\\]?".r
+        val problems = failure.getMessage.split("\n").map {
+          case Pattern(path, line, column, message) => {
+            new LineBasedProblem(message, Severity.Error, line.toInt, column.toInt - 1, "", new File(path))
           }
-          case _ => ???
-        })
+          case _ => throw new RuntimeException(failure)
+        }
 
         CompileProblems.report(reporter.value, problems)
       }
