@@ -1,10 +1,14 @@
+import bintray.Keys._
+
 sbtPlugin := true
 
 organization := "com.typesafe.sbt"
 
 name := "sbt-traceur"
 
-version := "1.0.0-SNAPSHOT"
+version := "1.0.0"
+
+licenses += ("MIT", url("https://github.com/arielscarpinelli/sbt-traceur/blob/master/LICENSE"))
 
 scalaVersion := "2.10.4"
 
@@ -30,6 +34,12 @@ publishTo := {
   if (isSnapshot.value) Some(Classpaths.sbtPluginSnapshots)
   else Some(Classpaths.sbtPluginReleases)
 }
+
+bintrayPublishSettings
+
+repository in bintray := "sbt-plugins"
+
+bintrayOrganization in bintray := None
 
 scriptedSettings
 
