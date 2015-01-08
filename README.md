@@ -20,12 +20,14 @@ By default the plugin will try to run traceur against the asset file `javascript
 Options
 -------
 
-Option                  | Description
-------------------------|------------
-sourceFileNames         | Files to compile. Should just be the 'root' modules, traceur will pull the rest. So for example if A.js requires B.js requires C.js, only list A.js here. Default `javascripts/main.js`
-outputFileName          | Name of the output file. Default main.js
-experimental            | Turns on all experimental features. Default false
-sourceMaps              | Enable source maps generation. Default true
-includeRuntime          | If traceur-runtime.js code should be included in the output file. Default true
-extraOptions            | Extra options to pass to traceur command line. Refer to [traceur docs](https://github.com/google/traceur-compiler/wiki/Options-for-Compiling) for all available options 
+Option                                      | Description
+--------------------------------------------|------------
+sourceFileNames in traceur in Assets        | Files to compile. Should just be the 'root' modules, traceur will pull the rest. So for example if A.js requires B.js requires C.js, only list A.js here. Default `javascripts/main.js`
+sourceFileNames in traceur in TestAssets    | Files to compile for tests `javascript-tests/main.js`
+outputFileName in traceur in Assets         | Name of the output file. Default main.js
+outputFileName in traceur in TestAssets     | Name of the output file for tests. Default main-test.js
+experimental                                | Turns on all experimental features. Default false
+sourceMaps                                  | Enable source maps generation. Default true
+includeRuntime                              | If traceur-runtime.js code should be included in the output file. Default true
+extraOptions                                | Extra options to pass to traceur command line. Refer to [traceur docs](https://github.com/google/traceur-compiler/wiki/Options-for-Compiling) for all available options 
 
