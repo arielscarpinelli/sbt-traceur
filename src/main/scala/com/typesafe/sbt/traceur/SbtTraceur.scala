@@ -1,6 +1,6 @@
 package com.typesafe.sbt.traceur
 
-import com.typesafe.sbt.jse.{SbtJsEngine, SbtJsTask}
+import com.typesafe.sbt.jse.SbtJsTask
 import com.typesafe.sbt.web.{CompileProblems, LineBasedProblem}
 import sbt.Keys._
 import sbt._
@@ -40,8 +40,10 @@ object SbtTraceur extends AutoPlugin {
 
   override def projectSettings = Seq(
     includeFilter in traceur := GlobFilter("*.js"),
-    sourceFileNames := Seq("javascripts/main.js"),
-    outputFileName := "main.js",
+    sourceFileNames in traceur in Assets := Seq("javascripts/main.js"),
+    sourceFileNames in traceur in TestAssets := Seq("javascript-tests/main.js"),
+    outputFileName in traceur in Assets := "main.js",
+    outputFileName in traceur in TestAssets := "main-test.js",
     experimental := false,
     sourceMaps := true,
     includeRuntime := true,
@@ -60,64 +62,72 @@ object SbtTraceur extends AutoPlugin {
     val sourceDir = (sourceDirectory in config).value
     val outputDir = (resourceManaged in config).value
     val inputFileCandidates = (sourceDir ** (includeFilter in traceur).value).get
-    val outputFile = outputDir / outputFileName.value
-    val sourceMapFile = outputDir / outputFileName.value.replace(".js", ".map")
+    val outputFileNameValue = (outputFileName in traceur in config).value
+    val outputFile = outputDir / outputFileNameValue
+    val sourceMapFile = outputDir / outputFileNameValue.replace(".js", ".map")
+    val fullPathSourceFiles = (sourceFileNames in traceur in config).value
+      .map(file => sourceDir / file).filter(_.exists)
 
-    val commandlineParameters = (
-      boolToParam(experimental.value, "--experimental")
-        ++ boolToParam(sourceMaps.value, "--source-maps=file")
-        ++ extraOptions.value
-        ++ Seq("--out", outputFile.toString)
-        ++ (sourceFileNames.value.map(file => (sourceDir / file).toString))
-      )
+    if (fullPathSourceFiles.nonEmpty) {
 
-    streams.value.log.info("Compiling with Traceur")
+      val commandlineParameters = (
+        boolToParam(experimental.value, "--experimental")
+          ++ boolToParam(sourceMaps.value, "--source-maps=file")
+          ++ extraOptions.value
+          ++ Seq("--out", outputFile.toString)
+          ++ fullPathSourceFiles.map(_.toString)
+        )
 
-    try {
-      SbtJsTask.executeJs(
-        state.value,
-        // For now traceur only works with node
-        EngineType.Node,
-        None,
-        Nil,
-        (webJarsNodeModulesDirectory in Plugin).value / "traceur" / "src" / "node" / "command.js",
-        commandlineParameters,
-        (timeoutPerSource in traceur).value * inputFileCandidates.size
-      )
-    } catch {
-      case failure:SbtJsTask.JsTaskFailure => {
-        val Pattern = "^\\[? *'?(.+?):(\\d+):(\\d+):(.+?)'?,? ?\\]?".r
-        val problems = failure.getMessage.split("\n").map {
-          case Pattern(path, line, column, message) => {
-            new LineBasedProblem(message, Severity.Error, line.toInt, column.toInt - 1, "", new File(path))
+      streams.value.log.info("Compiling with Traceur")
+
+      try {
+        SbtJsTask.executeJs(
+          state.value,
+          // For now traceur only works with node
+          EngineType.Node,
+          None,
+          Nil,
+          (webJarsNodeModulesDirectory in Plugin).value / "traceur" / "src" / "node" / "command.js",
+          commandlineParameters,
+          (timeoutPerSource in traceur).value * inputFileCandidates.size
+        )
+      } catch {
+        case failure: SbtJsTask.JsTaskFailure => {
+          val Pattern = "^\\[? *'?(.+?):(\\d+):(\\d+):(.+?)'?,? ?\\]?".r
+          val problems = failure.getMessage.split("\n").map {
+            case Pattern(path, line, column, message) => {
+              new LineBasedProblem(message, Severity.Error, line.toInt, column.toInt - 1, "", new File(path))
+            }
+            case _ => throw new RuntimeException(failure)
           }
-          case _ => throw new RuntimeException(failure)
+
+          CompileProblems.report(reporter.value, problems)
         }
-
-        CompileProblems.report(reporter.value, problems)
       }
-    }
 
-    if (includeRuntime.value) {
-      val compiled = IO.read(outputFile)
-      val runtime = IO.read(((webJarsNodeModulesDirectory in Plugin).value / "traceur" / "bin" / "traceur-runtime.js"))
+      if (includeRuntime.value) {
+        val compiled = IO.read(outputFile)
+        val runtime = IO.read((webJarsNodeModulesDirectory in Plugin).value / "traceur" / "bin" / "traceur-runtime.js")
 
-      IO.write(outputFile, runtime + compiled)
+        IO.write(outputFile, runtime + compiled)
+
+        if (sourceMaps.value) {
+          val runtimeLineCount = runtime.split("\n").length
+          val sourceMap = IO.read(sourceMapFile)
+
+          val adjustedSourceMap = sourceMap.replace("\"mappings\":\"", "\"mappings\":\"" + ";" * runtimeLineCount);
+
+          IO.write(sourceMapFile, adjustedSourceMap)
+        }
+      }
 
       if (sourceMaps.value) {
-        val runtimeLineCount = runtime.split("\n").length;
-        var sourceMap = IO.read(sourceMapFile)
-
-        val adjustedSourceMap = sourceMap.replace("\"mappings\":\"", "\"mappings\":\"" + ";" * runtimeLineCount);
-
-        IO.write(sourceMapFile, adjustedSourceMap)
+        Seq(outputFile, sourceMapFile)
+      } else {
+        Seq(outputFile)
       }
-    }
-
-    if (sourceMaps.value) {
-      Seq(outputFile, sourceMapFile)
     } else {
-      Seq(outputFile)
+      Seq()
     }
   }
 }
