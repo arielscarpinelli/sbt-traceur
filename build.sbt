@@ -6,7 +6,7 @@ organization := "com.typesafe.sbt"
 
 name := "sbt-traceur"
 
-version := "1.0.0"
+version := "1.0.1"
 
 licenses += ("MIT", url("https://github.com/arielscarpinelli/sbt-traceur/blob/master/LICENSE"))
 
